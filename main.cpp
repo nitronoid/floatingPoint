@@ -11,10 +11,14 @@ using float64 = dynamicFloat<52,11>;
 
 int main()
 {
-  float a = 10000000000000000000;
-  float32 b(a);
-  std::printf("val: %.64f\n",float(a));
-  std::printf("val: %.64f\n",float(std::numeric_limits<float>::denorm_min()));
+  double a = 0.0000001;
+  float64 b(a);
+  float16 z(b);
+  std::printf("val: %.64f\n",double(b));
+  std::printf("val: %.64f\n",double(z));
+  std::cout<<std::numeric_limits<float32>::is_specialized<<'\n';
+  std::printf("val: %.64f\n",float(std::numeric_limits<float32>::max()));
+  std::printf("val: %.64f\n",float(std::numeric_limits<float>::max()));
   return 0;
 }
-//std::numeric_limits<float32>::epsilon().getBits() (uint64_t(1)<<(N-1))-1 - ((uint64_t(1)<<MANTISSA)-1)
+//std::numeric_limits<T>::is_specialized
