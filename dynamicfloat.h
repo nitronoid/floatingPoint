@@ -41,8 +41,8 @@ class dynamicFloat
 public:
 
   dynamicFloat() = default;
-  dynamicFloat(float _infloat) : dynamicFloat(bit_cast<dynamicFloat<23,8>>(_infloat)){}
-  dynamicFloat(double _indouble) : dynamicFloat(bit_cast<dynamicFloat<52,11>>(_indouble)){}
+  explicit dynamicFloat(float _infloat) : dynamicFloat(bit_cast<dynamicFloat<23,8>>(_infloat)){}
+  explicit dynamicFloat(double _indouble) : dynamicFloat(bit_cast<dynamicFloat<52,11>>(_indouble)){}
 
   template<uint64_t M, uint64_t E>
   dynamicFloat(const dynamicFloat<M,E> &_infloat)
@@ -91,7 +91,9 @@ public:
         for(;!(m & base(iFloat_t::mantLen())); ++e, m <<= 1);
 
         IEEE.exponent = bias(EXPONENT) - bias(iFloat_t::expLen()) - e;
-        IEEE.mantissa = (padSize < 0) ? ((m & (base(iFloat_t::mantLen())-1)) << -padSize ) : ((m & (base(iFloat_t::mantLen())-1)) >> padSize);
+        IEEE.mantissa = (padSize < 0) ?
+              ((m & (base(iFloat_t::mantLen())-1)) << -padSize )
+            : ((m & (base(iFloat_t::mantLen())-1)) >> padSize);
       }
     }
 
@@ -161,9 +163,6 @@ class numeric_limits<dynamicFloat<MANTISSA, EXPONENT>>
   using uint_n = uintN_t<N>;
   static constexpr uint64_t allOne = (uint64_t(1)<<Nmo)-1; // 0-111.... , 0 followed by all ones
   static constexpr uint64_t mantAllOne(int64_t _offset = 0) { return ((uint64_t(1)<<(MANTISSA + _offset)) - 1 ); }
-
-  static constexpr uint64_t ilog2(int _n) { return ( (_n<2) ? 1 : 1+ilog2(_n/2)); }
-  static constexpr uint64_t ilog10(int _n) { return ilog2(_n) / ilog2(10); }
   static constexpr dfloat floatFromBits(uint_n _bits)
   {
     //Default constructor will avoid non-constexpr call to bit_cast
@@ -178,7 +177,7 @@ public:
   // General -- meaningful for all specializations.
   static constexpr bool is_specialized = true;
   static constexpr dfloat min() { return floatFromBits(uint_n( mantAllOne() + 1 )); }
-  static constexpr dfloat max() { return floatFromBits(uint_n( allOne - (mantAllOne() + 1) )); }
+  static constexpr dfloat max() { return floatFromBits(uint_n( allOne - ( mantAllOne() + 1 ))); }
   static constexpr int  radix       = 2;
   static constexpr int  digits      = MANTISSA + 1;
   static constexpr int  digits10    = MANTISSA * 0.30102999566;  // *log10(radix)
@@ -193,10 +192,12 @@ public:
 
   static constexpr dfloat epsilon() noexcept { return dfloat(std::pow(2,-MANTISSA)); } //Inefficient!
   static constexpr dfloat round_error() noexcept { return dfloat(0.5); }
+
+  static constexpr int min_exponent   = 1 - (( 1 << ( EXPONENT - 1 )) - 2);
+  static constexpr int max_exponent   = 1 << ( EXPONENT - 1 );
+
   //static const int min_exponent10     = std::log10(double(min()));
-  //static const int max_exponent10     = ilog10(max());
-  static constexpr int min_exponent   = 1 - ((1 << (EXPONENT-1))-2);
-  static constexpr int max_exponent   = 1<<(EXPONENT-1);
+  static const int max_exponent10     = (1 << ( EXPONENT - 1 )) / 3.32192809489; //divide by log2(10)
 
   static constexpr bool has_infinity        = true;
   static constexpr bool has_quiet_NaN       = true;

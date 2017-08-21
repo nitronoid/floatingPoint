@@ -11,14 +11,20 @@ using float64 = dynamicFloat<52,11>;
 
 int main()
 {
-  double a = 0.0000001;
+  double a = 0.5;
   float64 b(a);
   float16 z(b);
   std::printf("val: %.64f\n",double(b));
   std::printf("val: %.64f\n",double(z));
   std::cout<<std::numeric_limits<float32>::is_specialized<<'\n';
-  std::printf("val: %.64f\n",float(std::numeric_limits<float32>::max()));
-  std::printf("val: %.64f\n",float(std::numeric_limits<float>::max()));
+  std::printf("val: %.64f\n",float(std::numeric_limits<float64>::max_exponent10));
+  std::printf("val: %.64f\n",float(std::numeric_limits<double>::max_exponent10));
+  std::cout<<std::log2(std::numeric_limits<float>::max())<<'\n';
+  int bar;
+  std::frexp(std::numeric_limits<float>::max(),&bar);
+  std::cout<<(1<<7)/std::log2(10)<<'\n';
+  auto foo = bit_cast<uint64_t>(std::numeric_limits<double>::max());
+  std::cout<<std::bitset<64>(bar)<<'\n';
   return 0;
 }
 //std::numeric_limits<T>::is_specialized
