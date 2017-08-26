@@ -31,7 +31,7 @@ template <uint64_t SIGNIFICAND, uint64_t EXPONENT>
 class dynamicFloat
 {
   //Friend the numeric_limits specialisation
-  template<class> friend class std::numeric_limits;
+  friend struct std::numeric_limits<dynamicFloat<SIGNIFICAND, EXPONENT>>;
   //Friend all specialisations of dynamic float for easier conversion
   template<uint64_t,uint64_t > friend class dynamicFloat;
   //Declare total number of bits for easy reference
@@ -155,8 +155,8 @@ private:
 
 namespace std
 {
-template <int SIGNIFICAND, int EXPONENT>
-class numeric_limits<dynamicFloat<SIGNIFICAND, EXPONENT>>
+template <uint64_t SIGNIFICAND, uint64_t EXPONENT>
+struct numeric_limits<dynamicFloat<SIGNIFICAND, EXPONENT>>
 {
   using dfloat = dynamicFloat<SIGNIFICAND, EXPONENT>;
   static constexpr int typeWidthMinusOne = SIGNIFICAND + EXPONENT;

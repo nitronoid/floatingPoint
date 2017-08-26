@@ -19,6 +19,7 @@ int main()
   std::cout<<float(std::numeric_limits<float32>::lowest())<<'\n';
   uint32_t foo = bit_cast<uint32_t>(std::numeric_limits<float32>::lowest());
   std::cout<<std::bitset<32>(foo)<<'\n';
+  std::cout<<std::numeric_limits<float32>::has_infinity<<'\n';
   return 0;
 }
 //std::numeric_limits<T>::is_specialized
