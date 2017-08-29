@@ -11,15 +11,14 @@ using float64 = dynamicFloat<52,11>;
 
 int main()
 {
-  double a = 321.435;
-  float64 b(a);
-  float16 z(b);
-  std::printf("val: %.64f\n",double(b));
-  std::printf("val: %.64f\n",double(z));
-  std::cout<<float(std::numeric_limits<float32>::lowest())<<'\n';
-  uint32_t foo = bit_cast<uint32_t>(std::numeric_limits<float32>::lowest());
-  std::cout<<std::bitset<32>(foo)<<'\n';
-  std::cout<<std::numeric_limits<float32>::has_infinity<<'\n';
+  float fa = 25235.f;
+  float fb = -0.53123f;
+  float32 a = fa;
+  float32 b = fb;
+  std::cout<<float(a)<<'\n';
+  if(a == b) {std::cout<<"SUCCESS\n";}
+  auto c = a+b;
+  std::printf("val: %.64f\n",float(c));
+  std::printf("val: %.64f\n",float(fa+fb));
   return 0;
 }
-//std::numeric_limits<T>::is_specialized
