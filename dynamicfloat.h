@@ -76,7 +76,36 @@ public:
   inline friend bool operator== (const double _a, const dynamicFloat<TInSigLen, TInExpLen> _b);
 
   template<unsigned TInSigLen, unsigned TInExpLen>
-  auto operator+ (const dynamicFloat<TInSigLen, TInExpLen> _lhs);
+  auto operator* (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+
+  template<unsigned TInSigLen, unsigned TInExpLen>
+  auto operator+ (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+
+  template<unsigned TInSigLen, unsigned TInExpLen>
+  auto operator- (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+
+  dynamicFloat<TSignificand, TExponent> operator-() const;
+
+  template<unsigned TInSigLen, unsigned TInExpLen>
+  dynamicFloat<TSignificand, TExponent>& operator += (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+
+  template<unsigned TInSigLen, unsigned TInExpLen>
+  dynamicFloat<TSignificand, TExponent>& operator -= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+
+//  template<unsigned TInSigLen, unsigned TInExpLen>
+//	dynamicFloat<TSignificand, TExponent>& operator *= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+
+//  template<unsigned TInSigLen, unsigned TInExpLen>
+//	dynamicFloat<TSignificand, TExponent>& operator /= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+
+//	dynamicFloat<TSignificand, TExponent>& operator += (float other);
+//	dynamicFloat<TSignificand, TExponent>& operator -= (float other);
+//	dynamicFloat<TSignificand, TExponent>& operator *= (float other);
+//	dynamicFloat<TSignificand, TExponent>& operator /= (float other);
+
+  dynamicFloat<TSignificand, TExponent> operator--(int) const;
+
+  dynamicFloat<TSignificand, TExponent>& operator--() const;
 
 
 private:
@@ -102,7 +131,9 @@ private:
 
   static constexpr auto ilog2(unsigned n, unsigned p = 0) noexcept;
 
-  static constexpr uint32_t msb(uint32_t v);
+  static constexpr unsigned msb(uint64_t v);
+
+  static constexpr unsigned lsb(uint64_t v);
 
   inline bool isNaN() const;
 
