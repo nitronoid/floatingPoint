@@ -67,7 +67,7 @@ dynamicFloat<TSignificand, TExponent>::dynamicFloat(const dynamicFloat<TInSigLen
     else
     {
       auto base = iShiftPow2(TInSigLen);
-      auto e = TInSigLen - msb(_inFloat.IEEE.significand);
+      auto e = TInSigLen - (msb(_inFloat.IEEE.significand)-1);
       auto m = _inFloat.IEEE.significand << e;
       IEEE.exponent = bias(TExponent) - bias(TInExpLen) - e + 1;
       IEEE.significand = (padSize < 0) ?
@@ -111,7 +111,9 @@ template <unsigned TSignificand, unsigned TExponent>
 bool dynamicFloat<TSignificand, TExponent>::operator== (const dynamicFloat<TSignificand, TExponent> _inFloat) const
 {
   // +0 and -0 are considered to be equal
-  if (!(m_bits << 1u) && !(_inFloat.m_bits << 1u)) return true;
+  auto  thisNoSign = m_bits << 1u;
+  auto inNoSign = _inFloat.m_bits << 1u;
+  if (!thisNoSign && !inNoSign) return true;
   return m_bits == _inFloat.m_bits && !isNaN();
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -148,13 +150,13 @@ bool operator== (const double _a, const dynamicFloat<TInSigLen, TInExpLen> _b)
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
 template<unsigned TInSigLen, unsigned TInExpLen>
-auto dynamicFloat<TSignificand, TExponent>::operator* (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+auto dynamicFloat<TSignificand, TExponent>::operator* (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const
 {
   using TLargest = typename std::conditional_t< ((TSignificand + TExponent) > (TInSigLen + TInExpLen)), dynamicFloat<TSignificand, TExponent>, dynamicFloat<TInSigLen, TInExpLen>>;
   constexpr unsigned siglen = std::max(TSignificand,TInSigLen);
   constexpr unsigned explen = std::max(TExponent,TInExpLen);
   TLargest lhsConv = *this;
-  TLargest rhsConv { _rhs};
+  TLargest rhsConv = _rhs;
 
   //if either is zero return the other
   if(!lhsConv.m_bits || !rhsConv.m_bits) return TLargest{0.f};
@@ -175,27 +177,18 @@ auto dynamicFloat<TSignificand, TExponent>::operator* (const dynamicFloat<TInSig
 
   // get the significands and add the hidden bit,
   // IEEE uses 1.xxx... where the 1 isn't stored, so we add it
-  auto lhsSig = lhsConv.IEEE.significand | (uint64_t{1} << siglen);
-  auto rhsSig = rhsConv.IEEE.significand | (uint64_t{1} << siglen);
-
-  // remove trailing zeros to prevent overflow durng multiplcation
-  // automatically corrected when we normalize
-  lhsSig >>= lsb(lhsSig);
-  rhsSig >>= lsb(rhsSig);
-
+  auto lhsSig = lhsConv.IEEE.significand | (1ul << siglen);
+  auto rhsSig = rhsConv.IEEE.significand | (1ul << siglen);
 
   // exponent is the sum of the operands exponents
-  result.IEEE.exponent = (rhsConv.IEEE.exponent-bias(explen)) + (lhsConv.IEEE.exponent-bias(explen)) + bias(explen);
+  result.IEEE.exponent = (lhsConv.IEEE.exponent - bias(explen)) + (rhsConv.IEEE.exponent - bias(explen)) + bias(explen);
 
-  // sum the significands for our result
-  auto resultSig = lhsSig * rhsSig;
+  uint64_t resultSig;
+  bool up = nonOverflowMult<(siglen + 1) * 2>(lhsSig, rhsSig, resultSig);
 
   // amount of overflow bits we need to normalize
-  auto overflow = msb(resultSig) - siglen;
+  auto overflow = msb(resultSig) - siglen - 1;
 
-  //calculate the required exponent change after normalize
-  auto normExpChange = msb(resultSig) - (msb(lhsSig) + msb(rhsSig));
-  std::cout<<normExpChange<<'\n';
   // check sign of new significand
   if(overflow >> (sizeof(overflow) * 8 - 1))
   {
@@ -205,41 +198,93 @@ auto dynamicFloat<TSignificand, TExponent>::operator* (const dynamicFloat<TInSig
   // check not zero
   else if (overflow)
   {
-    // the bits lost when the significand is normalized
-//    auto loss = resultSig & ((uint64_t{1} << overflow) - 1);
-    // shift with rounding
-    std::cout<<std::bitset<32>((resultSig & (uint64_t{1}<<(overflow-1))))<<'\n';
-    resultSig = (resultSig >> overflow) + msb((resultSig & (uint64_t{1}<<(overflow-1))) << 1);
-
-//    // round the signficand
-//    if( (msb(loss) == static_cast<unsigned>(overflow - 1)) // check that first bit is 1
-//        && (loss & ~(1<<(overflow-1))))                     // check that there are other 1's
-//    {
-//      resultSig++;
-//    }
+    resultSig = roundingShift(resultSig, overflow);
   }
-
-
-
 
   // XOR sign
   result.IEEE.sign = (lhsConv.IEEE.sign != rhsConv.IEEE.sign);
   // assign our calculated significand
   result.IEEE.significand = resultSig;
-  // correct the exponent
-  result.IEEE.exponent += normExpChange;
+  // avoid a branch here and just add the bool
+  result.IEEE.exponent += static_cast<int>(up);
+
   return result;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
 template<unsigned TInSigLen, unsigned TInExpLen>
-auto dynamicFloat<TSignificand, TExponent>::operator+ (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+auto dynamicFloat<TSignificand, TExponent>::operator/ (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const
+{
+  using TLargest = typename std::conditional_t< ((TSignificand + TExponent) > (TInSigLen + TInExpLen)), dynamicFloat<TSignificand, TExponent>, dynamicFloat<TInSigLen, TInExpLen>>;
+  constexpr unsigned siglen = std::max(TSignificand,TInSigLen);
+  constexpr unsigned explen = std::max(TExponent,TInExpLen);
+  TLargest lhsConv = *this;
+  TLargest rhsConv = _rhs;
+
+  //if either is zero return the other
+  if(!lhsConv.m_bits || !rhsConv.m_bits) return TLargest{0.f};
+
+  // if either passed is NaN the result is NaN
+  if(lhsConv.isNaN() || rhsConv.isNaN())
+  {
+    return std::numeric_limits<TLargest>::signaling_NaN();
+  }
+
+  // if either passed is infinity the result is infinity
+  else if(lhsConv.isInfinity() || rhsConv.isInfinity())
+  {
+    return std::numeric_limits<TLargest>::infinity();
+  }
+
+  TLargest result;
+
+  // get the significands and add the hidden bit,
+  // IEEE uses 1.xxx... where the 1 isn't stored, so we add it
+  auto lhsSig = lhsConv.IEEE.significand | (1ul << siglen);
+  auto rhsSig = rhsConv.IEEE.significand | (1ul << siglen);
+
+  // exponent is the sum of the operands exponents
+  result.IEEE.exponent = (lhsConv.IEEE.exponent - bias(explen)) - (rhsConv.IEEE.exponent - bias(explen)) + bias(explen);
+  // sum the significands for our result
+  uint64_t resultSig;
+
+  bool down = longDivide<siglen + 1>(lhsSig , rhsSig, resultSig);
+
+  // amount of overflow bits we need to normalize
+  auto overflow = msb(resultSig) - siglen - 1;
+  std::cout<<overflow<<'\n';
+
+  // check sign of new significand
+  if(overflow >> (sizeof(overflow) * 8 - 1))
+  {
+    // don't need to round, reverse shift for negative
+    resultSig <<= -overflow;
+  }
+  // check not zero
+  else if (overflow)
+  {
+    resultSig = roundingShift(resultSig, overflow);
+  }
+
+  // XOR sign
+  result.IEEE.sign = (lhsConv.IEEE.sign != rhsConv.IEEE.sign);
+  // assign our calculated significand
+  result.IEEE.significand = resultSig;
+
+  result.IEEE.exponent -= static_cast<int>(down);
+
+  return result;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+template<unsigned TInSigLen, unsigned TInExpLen>
+auto dynamicFloat<TSignificand, TExponent>::operator+ (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const
 {
   // define the return type as the most precision passed
   using TLargest = typename std::conditional_t< ((TSignificand + TExponent) > (TInSigLen + TInExpLen)), dynamicFloat<TSignificand, TExponent>, dynamicFloat<TInSigLen, TInExpLen>>;
   constexpr unsigned siglen = std::max(TSignificand,TInSigLen);
   TLargest lhsConv = *this;
-  TLargest rhsConv { _rhs};
+  TLargest rhsConv = _rhs;
 
   //if either is zero return the other
   if(!lhsConv.m_bits) return rhsConv;
@@ -263,30 +308,23 @@ auto dynamicFloat<TSignificand, TExponent>::operator+ (const dynamicFloat<TInSig
 
   // get the significands and add the hidden bit,
   // IEEE uses 1.xxx... where the 1 isn't stored, so we add it
-  auto lhsSig = lhsConv.IEEE.significand | (uint64_t{1} << siglen);
-  auto rhsSig = rhsConv.IEEE.significand | (uint64_t{1} << siglen);
-  uint64_t loss;
+  auto lhsSig = lhsConv.IEEE.significand | (1ul << siglen);
+  auto rhsSig = rhsConv.IEEE.significand | (1ul << siglen);
 
   // get both operands in the same format with same exponent
   if(expDiff > 0)
   {
-    loss = rhsSig & ((uint64_t{1} << expDiff) - 1);
-    rhsSig >>= expDiff;
     // choose this format's exponent
     result.IEEE.exponent = lhsConv.IEEE.exponent;
+    rhsSig = roundingShift(rhsSig, expDiff);
   }
   else
   {
     expDiff = -expDiff;
-    loss = lhsSig & ((uint64_t{1} << expDiff) - 1);
-    lhsSig >>= expDiff;
     // choose this format's exponent
     result.IEEE.exponent = rhsConv.IEEE.exponent;
+    lhsSig = roundingShift(lhsSig, expDiff);
   }
-
-  if( (msb(loss) == static_cast<unsigned>(expDiff - 1)) // check that first bit is 1
-      && (loss & ~(1<<(expDiff-1))))                     // check that there are other 1's
-    rhsSig++;
 
   // use two's complement for negative
   if(lhsConv.IEEE.sign) lhsSig = -lhsSig;
@@ -305,19 +343,21 @@ auto dynamicFloat<TSignificand, TExponent>::operator+ (const dynamicFloat<TInSig
   }
   else
   {
-    // amount of overflow bits we need to normalize
-    auto overflow = msb(resultSig) - siglen;
-    // check sign of new significand
-    if(overflow >> (sizeof(overflow) * 8 - 1))
-      // don't need to round, reverse shift for negative
-      resultSig <<= -overflow;
-    // check not zero
-    else if (overflow)
-      // shift with rounding
-      resultSig = (resultSig >> overflow) + msb((resultSig & (uint64_t{1}<<(overflow-1))) << 1);
-
     // positive sign
     result.IEEE.sign = 0;
+    // amount of overflow bits we need to normalize
+    auto overflow = msb(resultSig) - siglen - 1;
+    // check sign of new significand
+    if(overflow >> (sizeof(overflow) * 8 - 1))
+    {
+      // don't need to round, reverse shift for negative
+      resultSig <<= -overflow;
+    }
+    // check not zero
+    else if (overflow)
+    {
+      resultSig = roundingShift(resultSig, overflow);
+    }
     // assign our calculated significand
     result.IEEE.significand = resultSig;
     // add the overflow to our exponent to normalize the float
@@ -328,7 +368,7 @@ auto dynamicFloat<TSignificand, TExponent>::operator+ (const dynamicFloat<TInSig
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
 template<unsigned TInSigLen, unsigned TInExpLen>
-auto dynamicFloat<TSignificand, TExponent>::operator- (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+auto dynamicFloat<TSignificand, TExponent>::operator- (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const
 {
   return *this + (-_rhs);
 }
@@ -364,7 +404,7 @@ dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::op
 //}
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-dynamicFloat<TSignificand, TExponent> dynamicFloat<TSignificand, TExponent>::operator--(int) const
+dynamicFloat<TSignificand, TExponent> dynamicFloat<TSignificand, TExponent>::operator--(const int) const
 {
 
 }
@@ -384,25 +424,25 @@ dynamicFloat<TSignificand, TExponent> dynamicFloat<TSignificand, TExponent>::ope
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-bool dynamicFloat<TSignificand, TExponent>::isNaN() const
+bool dynamicFloat<TSignificand, TExponent>::isNaN() const noexcept
 {
   return IEEE.significand != 0 && IEEE.exponent == maxExponent(TExponent);
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-bool dynamicFloat<TSignificand, TExponent>::isInfinity() const
+bool dynamicFloat<TSignificand, TExponent>::isInfinity() const noexcept
 {
   return IEEE.significand == 0 && IEEE.exponent == maxExponent(TExponent);
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-bool dynamicFloat<TSignificand, TExponent>::isDenorm() const
+bool dynamicFloat<TSignificand, TExponent>::isDenorm() const noexcept
 {
   return IEEE.exponent == 0;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-constexpr auto dynamicFloat<TSignificand, TExponent>::bias(unsigned _exponent) noexcept
+constexpr auto dynamicFloat<TSignificand, TExponent>::bias(const unsigned _exponent) noexcept
 {
   return static_cast<int>(1ul << (_exponent - 1)) - 1;
 }
@@ -414,21 +454,15 @@ constexpr auto dynamicFloat<TSignificand, TExponent>::minExponent() noexcept
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-constexpr auto dynamicFloat<TSignificand, TExponent>::maxExponent(unsigned _exponent) noexcept
+constexpr auto dynamicFloat<TSignificand, TExponent>::maxExponent(const unsigned _exponent) noexcept
 {
   return (1ul << _exponent) - 1;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-constexpr auto dynamicFloat<TSignificand, TExponent>::iShiftPow2(unsigned _mantissa) noexcept
+constexpr auto dynamicFloat<TSignificand, TExponent>::iShiftPow2(const unsigned _mantissa) noexcept
 {
   return 1ul << _mantissa;
-}
-//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-template <unsigned TSignificand, unsigned TExponent>
-constexpr auto dynamicFloat<TSignificand, TExponent>::ilog2(unsigned n, unsigned p) noexcept
-{
-  return (n <= 1) ? p : ilog2(n / 2, p + 1);
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
@@ -449,19 +483,122 @@ constexpr unsigned dynamicFloat<TSignificand, TExponent>::msb(uint64_t v)
   // is constant time
   for(int i = 1; i < 64; i <<= 1) v |= v >> i;
 
-  return deBruijnTable[static_cast<uint64_t>( v * 0x6c04f118e9966f6bUL ) >> 57] - 1;
+  return static_cast<unsigned>(deBruijnTable[static_cast<uint64_t>( v * 0x6c04f118e9966f6bUL ) >> 57]);
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-constexpr unsigned dynamicFloat<TSignificand, TExponent>::lsb(uint64_t v)
+constexpr unsigned dynamicFloat<TSignificand, TExponent>::lsb(const uint64_t v)
 {
-  constexpr int deBruijnTable[32] =
+  constexpr int deBruijnTable[64] =
   {
-    0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
-    31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+    0, 1, 48, 2, 57, 49, 28, 3, 61, 58, 50, 42, 38, 29, 17, 4,
+    62, 55, 59, 36, 53, 51, 43, 22, 45, 39, 33, 30, 24, 18, 12, 5,
+    63, 47, 56, 27, 60, 41, 37, 16, 54, 35, 52, 21, 44, 32, 23, 11,
+    46, 26, 40, 15, 34, 20, 31, 10, 25, 14, 19, 9, 13, 8, 7, 6
   };
-  return deBruijnTable[((uint32_t)((v & -v) * 0x077CB531U)) >> 27];
+  return deBruijnTable[static_cast<uint64_t>((v & -v) * 0x03F79D71B4CB0A89U) >> 58];
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+template<int width>
+bool dynamicFloat<TSignificand, TExponent>::nonOverflowMult(const uint64_t _lhs, const uint64_t _rhs, uint64_t &io_result) const
+{
+  // we need to calculate the product of all combnations between the high bits,
+  // and the low bits of both operands. This will use long division to carry.
+
+  // lambdas to get the lower and higher bits of an integer
+  const auto lowBits = [](uint64_t _in) { return ((1ul << 32) - 1) & _in; };
+  const auto highBits = [](uint64_t _in) { return _in >> 32; };
+
+  // temp variable used to store intermediate results
+  // calculate the low product
+  auto temp = lowBits(_lhs) * lowBits(_rhs);
+  // get the least signficant bits from the low product
+  const auto lowestBits = lowBits(temp);
+
+  // carry the high bits forward from the past calculation
+  temp = highBits(_lhs) * lowBits(_rhs) + highBits(temp);
+  // get the low, and the high to carry forward
+  auto lowerMidBits = lowBits(temp);
+  auto upperMidBits = highBits(temp);
+
+  // add the next product to our low bits from last calc
+  temp = lowerMidBits + lowBits(_lhs) * highBits(_rhs);
+  // save the new low bits
+  lowerMidBits = lowBits(temp);
+
+  // repeat the previous calc using the new highest bits
+  temp = upperMidBits + highBits(_lhs) * highBits(_rhs) + highBits(temp);
+  upperMidBits = lowBits(temp);
+
+  // get the final highest bits
+  const auto highestBits = highBits(temp);
+
+  // get the result produced from normal overflowing multiplication
+  const auto overflowResult = lowerMidBits << 32 | lowestBits;
+  // calculate the bits that would be lost to overflow
+  const auto carry = highestBits << 32 | upperMidBits;
+
+  // shift the overflow result to make room for carry
+  // shift the carry to the front then add
+  io_result = roundingShift(overflowResult, msb(carry)) + (carry << (64 - msb(carry)));
+
+  // is the carry empty?
+  const bool emptyCarry = static_cast<bool>(carry);
+
+  // calculate the number of digits that the result occupies
+  // if the carry isn't empty we need to add 64 as it is at least this long
+  // otherwise we get the number of digits from the first word
+  const unsigned numDigits = msb(carry) + static_cast<unsigned>(!emptyCarry) * msb(overflowResult) + static_cast<unsigned>(emptyCarry) * 64;
+
+  // return whether the exponent requires an increment
+  return numDigits >= width;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+template <int width>
+bool dynamicFloat<TSignificand, TExponent>::longDivide(uint64_t _lhs, const uint64_t _rhs, uint64_t &io_result) const
+{
+  unsigned shift = 64 - msb(_lhs);
+  _lhs <<= shift;
+  bool set = false;
+  io_result = 0;
+  uint64_t rem = 0;
+  int i = 63;
+  for(int p = 63; p >= 0; --i)
+  {
+    rem <<= 1;
+    if(i >= 0)
+      rem |= static_cast<unsigned>(static_cast<bool>(_lhs & (1ul << i)));
+    else
+      rem |= static_cast<unsigned>(static_cast<bool>(_lhs & (1ul >> -i)));
+    if(rem >= _rhs)
+    {
+      rem -= _rhs;
+      io_result |= 1ul << p;
+      set = true;
+    }
+    p -= static_cast<int>(set);
+  }
+  io_result = roundingShift(io_result, shift);
+
+  return i < -width;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+auto dynamicFloat<TSignificand, TExponent>::roundingShift(uint64_t io_num, const uint64_t _shift) const
+{
+  // save the bits that will be lost by shifting
+  auto loss = io_num & ((1ul << _shift) - 1);
+  io_num >>= _shift;
+  if( (msb(loss) == static_cast<unsigned>(_shift))           // check that first bit is 1
+      && ((loss & ~(1ul << (_shift - 1))) || (io_num & 1) )) // check that there are other 1's
+  {
+    io_num++;
+  }
+  return io_num;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 #endif

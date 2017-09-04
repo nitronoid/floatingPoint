@@ -9,18 +9,26 @@ using float16 = dynamicFloat<10,5>;
 using float32 = dynamicFloat<23,8>;
 using float64 = dynamicFloat<52,11>;
 
+#define OPERATION /
+
 int main()
 {
-  double fa = 5460.4365;
-  double fb = 206456.44455;
-  float32 a = fa;
-  float32 b = fb;
-  std::cout<<float(a)<<'\n';
+  using test = double;
+  using testW = uint64_t;
+  using testDf = float64;
+  constexpr int width = 64;
+
+  test fa = 486759365936596563;
+  test fb = 34.534;
+  testDf a = fa;
+  testDf b = fb;
+
   if(a == b) {std::cout<<"SUCCESS\n";}
-  auto c = a*b;
-  std::printf("val: %.64f\n",float(c));
-  std::printf("val: %.64f\n",float(fa*fb));
-  std::cout<<std::bitset<32>(bit_cast<uint32_t>(float(c)))<<'\n';
-  std::cout<<std::bitset<32>(bit_cast<uint32_t>(float(fa*fb)))<<'\n';
+  auto c = a OPERATION b;
+  std::printf("val: %.64f\n",test(c));
+  std::printf("val: %.64f\n",test(fa OPERATION fb));
+  std::cout<<std::bitset<width>(bit_cast<testW>(test(c)))<<'\n';
+  std::cout<<std::bitset<width>(bit_cast<testW>(test(fa OPERATION fb)))<<'\n';
+  std::cout<<sizeof(long double)<<'\n';
   return 0;
 }

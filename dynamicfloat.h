@@ -76,13 +76,16 @@ public:
   inline friend bool operator== (const double _a, const dynamicFloat<TInSigLen, TInExpLen> _b);
 
   template<unsigned TInSigLen, unsigned TInExpLen>
-  auto operator* (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+  auto operator* (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const;
 
   template<unsigned TInSigLen, unsigned TInExpLen>
-  auto operator+ (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+  auto operator/ (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const;
 
   template<unsigned TInSigLen, unsigned TInExpLen>
-  auto operator- (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+  auto operator+ (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const;
+
+  template<unsigned TInSigLen, unsigned TInExpLen>
+  auto operator- (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const;
 
   dynamicFloat<TSignificand, TExponent> operator-() const;
 
@@ -103,7 +106,7 @@ public:
 //	dynamicFloat<TSignificand, TExponent>& operator *= (float other);
 //	dynamicFloat<TSignificand, TExponent>& operator /= (float other);
 
-  dynamicFloat<TSignificand, TExponent> operator--(int) const;
+  dynamicFloat<TSignificand, TExponent> operator--(const int) const;
 
   dynamicFloat<TSignificand, TExponent>& operator--() const;
 
@@ -112,34 +115,41 @@ private:
   // union to store this classes data
   union
   {
-    uint_n m_bits;                // All bits
+    uint_n m_bits;  // All bits
     struct
     {
       uint_n significand : TSignificand;	// mantissa
-      uint_n exponent : TExponent;	// exponent
-      uint_n sign : 1;            // sign always 1 bit
+      uint_n exponent : TExponent;        // exponent
+      uint_n sign : 1;                    // sign always 1 bit
     } IEEE;
   };
 
-  static constexpr auto bias(unsigned _exponent) noexcept;
+  static constexpr auto bias(const unsigned _exponent) noexcept;
 
   static constexpr auto minExponent() noexcept;
 
-  static constexpr auto maxExponent(unsigned _exponent) noexcept;
+  static constexpr auto maxExponent(const unsigned _exponent) noexcept;
 
-  static constexpr auto iShiftPow2(unsigned _mantissa) noexcept;
-
-  static constexpr auto ilog2(unsigned n, unsigned p = 0) noexcept;
+  static constexpr auto iShiftPow2(const unsigned _mantissa) noexcept;
 
   static constexpr unsigned msb(uint64_t v);
 
-  static constexpr unsigned lsb(uint64_t v);
+  static constexpr unsigned lsb(const uint64_t v);
 
-  inline bool isNaN() const;
+  inline bool isNaN() const noexcept;
 
-  inline bool isInfinity() const;
+  inline bool isInfinity() const noexcept;
 
-  inline bool isDenorm() const;
+  inline bool isDenorm() const noexcept;
+
+  template<int width>
+  bool nonOverflowMult(const uint64_t _lhs, const uint64_t _rhs, uint64_t &io_result) const;
+
+  template<int width>
+  bool longDivide(uint64_t _lhs, const uint64_t _rhs, uint64_t &io_result) const;
+
+  inline auto roundingShift(uint64_t io_num, const uint64_t _shift) const;
+
 };
 
 
