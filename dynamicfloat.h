@@ -48,7 +48,7 @@ public:
   dynamicFloat(const double _inDouble) : dynamicFloat(bit_cast<dynamicFloat<52,11>>(_inDouble)){}
   dynamicFloat<TSignificand, TExponent>& operator= (const double _inDouble);
 
-  dynamicFloat(const dynamicFloat<TSignificand, TExponent> &_inFloat) : m_bits(_inFloat.m_bits) {}
+  dynamicFloat(const dynamicFloat<TSignificand, TExponent> &_inFloat) : m_data(_inFloat.m_data.m_bits) {}
   dynamicFloat<TSignificand, TExponent>& operator= (const dynamicFloat<TSignificand, TExponent> &_inFloat);
 
   template<unsigned TInSigLen, unsigned TInExpLen>
@@ -95,16 +95,16 @@ public:
   template<unsigned TInSigLen, unsigned TInExpLen>
   dynamicFloat<TSignificand, TExponent>& operator -= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
 
-//  template<unsigned TInSigLen, unsigned TInExpLen>
-//	dynamicFloat<TSignificand, TExponent>& operator *= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+  //  template<unsigned TInSigLen, unsigned TInExpLen>
+  //	dynamicFloat<TSignificand, TExponent>& operator *= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
 
-//  template<unsigned TInSigLen, unsigned TInExpLen>
-//	dynamicFloat<TSignificand, TExponent>& operator /= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+  //  template<unsigned TInSigLen, unsigned TInExpLen>
+  //	dynamicFloat<TSignificand, TExponent>& operator /= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
 
-//	dynamicFloat<TSignificand, TExponent>& operator += (float other);
-//	dynamicFloat<TSignificand, TExponent>& operator -= (float other);
-//	dynamicFloat<TSignificand, TExponent>& operator *= (float other);
-//	dynamicFloat<TSignificand, TExponent>& operator /= (float other);
+  //	dynamicFloat<TSignificand, TExponent>& operator += (float other);
+  //	dynamicFloat<TSignificand, TExponent>& operator -= (float other);
+  //	dynamicFloat<TSignificand, TExponent>& operator *= (float other);
+  //	dynamicFloat<TSignificand, TExponent>& operator /= (float other);
 
   dynamicFloat<TSignificand, TExponent> operator--(const int) const;
 
@@ -113,8 +113,10 @@ public:
 
 private:
   // union to store this classes data
-  union
+  union data
   {
+    data() = default;
+    data(uint_n _bits) : m_bits(_bits) {}
     uint_n m_bits;  // All bits
     struct
     {
@@ -122,7 +124,7 @@ private:
       uint_n exponent : TExponent;        // exponent
       uint_n sign : 1;                    // sign always 1 bit
     } IEEE;
-  };
+  } m_data;
 
   static constexpr auto bias(const unsigned _exponent) noexcept;
 
@@ -176,7 +178,7 @@ private:
     //Default constructor will avoid non-constexpr call to bit_cast
     dfloat bitFloat{};
     //Set the bits directly with friend class relationship
-    bitFloat.m_bits = _bits;
+    bitFloat.m_data.m_bits = _bits;
     return bitFloat;
   }
   static constexpr double log_base2_10 = 3.32192809489;
@@ -222,7 +224,7 @@ public:
   static constexpr dfloat denorm_min()    noexcept { return floatFromBits(uint_n{1}); }
   static constexpr dfloat infinity()      noexcept { return floatFromBits(uint_n{maskOnesNoSign - mantAllOne(0)}); }
   static constexpr dfloat quiet_NaN()     noexcept { return floatFromBits(uint_n{maskOnesNoSign - mantAllOne(-1)}); }
-  static constexpr dfloat signaling_NaN() noexcept { return floatFromBits(uint_n{maskOnesNoSign - mantAllOne(-1) - mantAllOne(-2)}); }
+  static constexpr dfloat signaling_NaN() noexcept { return floatFromBits(uint_n{maskOnesNoSign - mantAllOne(0) + mantAllOne(-2) + 1}); }
 };
 }
 
