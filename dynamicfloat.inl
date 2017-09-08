@@ -2,6 +2,9 @@
 #ifndef DYNAMICFLOAT_INL_INCLUDED
 #define DYNAMICFLOAT_INL_INCLUDED
 
+//==================================================================================================================
+//---------------------------------------------------Constructors---------------------------------------------------
+//==================================================================================================================
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
@@ -95,6 +98,14 @@ dynamicFloat<TSignificand, TExponent>::dynamicFloat(const dynamicFloat<TInSigLen
   }
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//==================================================================================================================
+//----------------------------------------------------Operators-----------------------------------------------------
+//==================================================================================================================
+
+//---------------------------------------------------Conversion-----------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
 dynamicFloat<TSignificand, TExponent>::operator float() const
 {
@@ -106,6 +117,10 @@ dynamicFloat<TSignificand, TExponent>::operator double() const
 {
   return bit_cast<double>(dynamicFloat<52,11>(*this));
 }
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//----------------------------------------------------Equality------------------------------------------------------
+
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
 bool dynamicFloat<TSignificand, TExponent>::operator== (const dynamicFloat<TSignificand, TExponent> _inFloat) const
@@ -124,29 +139,9 @@ bool operator== (const dynamicFloat<TASigLen, TAExpLen> _a, const dynamicFloat<T
   return _a == converted;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-template<unsigned TInSigLen, unsigned TInExpLen>
-bool operator== (const dynamicFloat<TInSigLen, TInExpLen> _a, const float _b)
-{
-  return _a == dynamicFloat<TInSigLen, TInExpLen>(_b);
-}
-//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-template<unsigned TInSigLen, unsigned TInExpLen>
-bool operator== (const float _a, const dynamicFloat<TInSigLen, TInExpLen> _b)
-{
-  return _b == _a;
-}
-//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-template<unsigned TInSigLen, unsigned TInExpLen>
-bool operator== (const dynamicFloat<TInSigLen, TInExpLen> _a, const double _b)
-{
-  return _a == dynamicFloat<TInSigLen, TInExpLen>(_b);
-}
-//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-template<unsigned TInSigLen, unsigned TInExpLen>
-bool operator== (const double _a, const dynamicFloat<TInSigLen, TInExpLen> _b)
-{
-  return _b == _a;
-}
+
+//--------------------------------------------------Arithmetic----------------------------------------------------
+
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
 template<unsigned TInSigLen, unsigned TInExpLen>
@@ -252,8 +247,6 @@ auto dynamicFloat<TSignificand, TExponent>::operator/ (const dynamicFloat<TInSig
 
   // amount of overflow bits we need to normalize
   auto overflow = msb(resultSig) - siglen - 1;
-  std::cout<<overflow<<'\n';
-
   // check sign of new significand
   if(overflow >> (sizeof(overflow) * 8 - 1))
   {
@@ -286,7 +279,6 @@ auto dynamicFloat<TSignificand, TExponent>::operator+ (const dynamicFloat<TInSig
   // if either passed is NaN the result is NaN
   if(isNaN() || _rhs.isNaN())
   {
-    std::cout<<"CAUGHT\n";
     return std::numeric_limits<TLargest>::signaling_NaN();
   }
 
@@ -342,36 +334,34 @@ auto dynamicFloat<TSignificand, TExponent>::operator+ (const dynamicFloat<TInSig
     // negative sign
     result.m_data.IEEE.sign = 1;
     // convert result significand to two's complement
-    result.m_data.IEEE.significand = -resultSig;
+    resultSig = -resultSig;
   }
   else
   {
     // positive sign
     result.m_data.IEEE.sign = 0;
-    // amount of overflow bits we need to normalize
-    auto overflow = msb(resultSig) - siglen - 1;
-
-    // check sign of new significand
-    if(overflow >> (sizeof(overflow) * 8 - 1))
-    {
-      // don't need to round, reverse shift for negative
-      resultSig <<= -overflow;
-    }
-    // check not zero
-    else if (overflow)
-    {
-      resultSig = roundingShift(resultSig, overflow);
-    }
-
-    // add the overflow to our exponent to normalize the float
-    result.m_data.IEEE.exponent += overflow;
-    if(result.m_data.IEEE.exponent != maxExponent(explen))
-      // assign our calculated significand
-      result.m_data.IEEE.significand = resultSig;
-    else
-      result.m_data.IEEE.significand = 0;
-
   }
+  // amount of overflow bits we need to normalize
+  auto overflow = msb(resultSig) - siglen - 1;
+  // check sign of new significand
+  if(overflow >> (sizeof(overflow) * 8 - 1))
+  {
+    // don't need to round, reverse shift for negative
+    resultSig <<= -overflow;
+  }
+  // check not zero
+  else if (overflow)
+  {
+    resultSig = roundingShift(resultSig, overflow);
+  }
+
+  // add the overflow to our exponent to normalize the float
+  result.m_data.IEEE.exponent += overflow;
+  if(result.m_data.IEEE.exponent != maxExponent(explen))
+    // assign our calculated significand
+    result.m_data.IEEE.significand = resultSig;
+  else
+    result.m_data.IEEE.significand = 0;
   return result;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -391,6 +381,14 @@ dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::op
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
+template<typename F, typename>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator += (const F _rhs)
+{
+  (*this) += dynamicEquivalent<F>(_rhs);
+  return *this;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
 template<unsigned TInSigLen, unsigned TInExpLen>
 dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator -= (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
 {
@@ -398,30 +396,72 @@ dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::op
   return *this;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-//template <unsigned TSignificand, unsigned TExponent>
-//template<unsigned TInSigLen, unsigned TInExpLen>
-//dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator *= (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
-//{
-
-//}
-////-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-//template <unsigned TSignificand, unsigned TExponent>
-//template<unsigned TInSigLen, unsigned TInExpLen>
-//dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator /= (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
-//{
-
-//}
-//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-dynamicFloat<TSignificand, TExponent> dynamicFloat<TSignificand, TExponent>::operator--(const int) const
+template<typename F, typename>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator -= (const F _rhs)
 {
-
+  (*this) -= dynamicEquivalent<F>(_rhs);
+  return *this;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
-dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator--() const
+template<unsigned TInSigLen, unsigned TInExpLen>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator *= (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
 {
-
+  *this = (*this) * _rhs;
+  return *this;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+template<typename F, typename>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator *= (const F _rhs)
+{
+  (*this) *= dynamicEquivalent<F>(_rhs);
+  return *this;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+template<unsigned TInSigLen, unsigned TInExpLen>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator /= (const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+{
+  *this = (*this) / _rhs;
+  return *this;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+template<typename F, typename>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator /= (const F _rhs)
+{
+  (*this) /= dynamicEquivalent<F>(_rhs);
+  return *this;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+dynamicFloat<TSignificand, TExponent> dynamicFloat<TSignificand, TExponent>::operator++(const int)
+{
+  auto copy = *this;
+  (*this) += 1.0f;
+  return copy;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator++()
+{
+  return (*this) += 1.0f;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+dynamicFloat<TSignificand, TExponent> dynamicFloat<TSignificand, TExponent>::operator--(const int)
+{
+  auto copy = *this;
+  (*this) -= 1.0f;
+  return copy;
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template <unsigned TSignificand, unsigned TExponent>
+dynamicFloat<TSignificand, TExponent>& dynamicFloat<TSignificand, TExponent>::operator--()
+{
+  return (*this) -= 1.0f;
 }
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
@@ -431,6 +471,98 @@ dynamicFloat<TSignificand, TExponent> dynamicFloat<TSignificand, TExponent>::ope
   neg.m_data.IEEE.sign = ~neg.m_data.IEEE.sign;
   return neg;
 }
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//===============================================================================================================
+//-------------------------Free functions for compatability with built in types----------------------------------
+//===============================================================================================================
+
+//----------------------------------------------Equality operator------------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+bool operator== (const dynamicFloat<TInSigLen, TInExpLen> _lhs, const F _rhs)
+{
+  return _lhs == dynamicFloat<TInSigLen, TInExpLen>(_rhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+bool operator== (const F _lhs, const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+{
+  return _rhs == dynamicFloat<TInSigLen, TInExpLen>(_lhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------Addition operator-----------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator+ (const dynamicFloat<TInSigLen, TInExpLen> _lhs, const F _rhs)
+{
+  return _lhs + dynamicEquivalent<F>(_rhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator+ (const F _lhs, const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+{
+  return _rhs + dynamicEquivalent<F>(_lhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//----------------------------------------------Subtraction operator---------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator- (const dynamicFloat<TInSigLen, TInExpLen> _lhs, const F _rhs)
+{
+  return _lhs - dynamicEquivalent<F>(_rhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator- (const F _lhs, const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+{
+  return _rhs - dynamicEquivalent<F>(_lhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//--------------------------------------------Multiplication operator--------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator* (const dynamicFloat<TInSigLen, TInExpLen> _lhs, const F _rhs)
+{
+  return _lhs * dynamicEquivalent<F>(_rhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator* (const F _lhs, const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+{
+  return _rhs * dynamicEquivalent<F>(_lhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//-----------------------------------------------Division operator----------------------------------------------
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator/ (const dynamicFloat<TInSigLen, TInExpLen> _lhs, const F _rhs)
+{
+  return _lhs / dynamicEquivalent<F>(_rhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+template<unsigned TInSigLen, unsigned TInExpLen, typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+auto operator/ (const F _lhs, const dynamicFloat<TInSigLen, TInExpLen> _rhs)
+{
+  return _rhs / dynamicEquivalent<F>(_lhs);
+}
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+//===============================================================================================================
+//----------------------------------------------PRIVATE API------------------------------------------------------
+//===============================================================================================================
+
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 template <unsigned TSignificand, unsigned TExponent>
 bool dynamicFloat<TSignificand, TExponent>::isNaN() const noexcept

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <limits>
 #include <cstring>
+#include <type_traits>
 
 template <typename TDest, typename TSource>
 inline TDest bit_cast(const TSource& source)
@@ -18,7 +19,7 @@ inline TDest bit_cast(const TSource& source)
 // Selects the correct size type based on passed bit num
 template<int N>
 using uintN_t =
-typename std::conditional_t< N <= 8, uint8_t,
+typename std::conditional_t< N <=  8,  uint8_t,
 typename std::conditional_t< N <= 16, uint16_t,
 typename std::conditional_t< N <= 32, uint32_t,
 uint64_t
@@ -40,6 +41,9 @@ class dynamicFloat
 
 public:
 
+//==================================================================================================================
+//---------------------------------------------------Constructors---------------------------------------------------
+//==================================================================================================================
   dynamicFloat() = default;
 
   dynamicFloat(const float _inFloat) : dynamicFloat(bit_cast<dynamicFloat<23,8>>(_inFloat)){}
@@ -54,27 +58,20 @@ public:
   template<unsigned TInSigLen, unsigned TInExpLen>
   dynamicFloat(const dynamicFloat<TInSigLen,TInExpLen> _inFloat);
 
+
+//==================================================================================================================
+//----------------------------------------------------Operators-----------------------------------------------------
+//==================================================================================================================
+
+  //--------------------------------------------------Conversion----------------------------------------------------
   operator float() const;
 
   operator double() const;
 
+  //---------------------------------------------------Equality-----------------------------------------------------
   bool operator== (const dynamicFloat<TSignificand, TExponent> _inFloat) const;
 
-  template<unsigned TASigLen, unsigned TAExpLen, unsigned TBSigLen, unsigned TBExpLen>
-  inline friend bool operator== (const dynamicFloat<TASigLen, TAExpLen> _a, const dynamicFloat<TBSigLen, TBExpLen> _b);
-
-  template<unsigned TInSigLen, unsigned TInExpLen>
-  inline friend bool operator== (const dynamicFloat<TInSigLen, TInExpLen> _a, const float _b);
-
-  template<unsigned TInSigLen, unsigned TInExpLen>
-  inline friend bool operator== (const float _a, const dynamicFloat<TInSigLen, TInExpLen> _b);
-
-  template<unsigned TInSigLen, unsigned TInExpLen>
-  inline friend bool operator== (const dynamicFloat<TInSigLen, TInExpLen> _a, const double _b);
-
-  template<unsigned TInSigLen, unsigned TInExpLen>
-  inline friend bool operator== (const double _a, const dynamicFloat<TInSigLen, TInExpLen> _b);
-
+  //--------------------------------------------------Arithmetic----------------------------------------------------
   template<unsigned TInSigLen, unsigned TInExpLen>
   auto operator* (const dynamicFloat<TInSigLen, TInExpLen> _rhs) const;
 
@@ -89,26 +86,42 @@ public:
 
   dynamicFloat<TSignificand, TExponent> operator-() const;
 
+  //------------------------------------------------Self Addition---------------------------------------------------
   template<unsigned TInSigLen, unsigned TInExpLen>
   dynamicFloat<TSignificand, TExponent>& operator += (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
 
+  template<typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+  dynamicFloat<TSignificand, TExponent>& operator += (const F _rhs);
+
+  //-----------------------------------------------Self Subtraction-------------------------------------------------
   template<unsigned TInSigLen, unsigned TInExpLen>
   dynamicFloat<TSignificand, TExponent>& operator -= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
 
-  //  template<unsigned TInSigLen, unsigned TInExpLen>
-  //	dynamicFloat<TSignificand, TExponent>& operator *= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+  template<typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+  dynamicFloat<TSignificand, TExponent>& operator -= (const F _rhs);
 
-  //  template<unsigned TInSigLen, unsigned TInExpLen>
-  //	dynamicFloat<TSignificand, TExponent>& operator /= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
+  //----------------------------------------------Self Multiplicaton------------------------------------------------
+  template<unsigned TInSigLen, unsigned TInExpLen>
+  dynamicFloat<TSignificand, TExponent>& operator *= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
 
-  //	dynamicFloat<TSignificand, TExponent>& operator += (float other);
-  //	dynamicFloat<TSignificand, TExponent>& operator -= (float other);
-  //	dynamicFloat<TSignificand, TExponent>& operator *= (float other);
-  //	dynamicFloat<TSignificand, TExponent>& operator /= (float other);
+  template<typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+  dynamicFloat<TSignificand, TExponent>& operator *= (const F _rhs);
 
-  dynamicFloat<TSignificand, TExponent> operator--(const int) const;
+  //-------------------------------------------------Self Division--------------------------------------------------
+  template<unsigned TInSigLen, unsigned TInExpLen>
+  dynamicFloat<TSignificand, TExponent>& operator /= (const dynamicFloat<TInSigLen, TInExpLen> _rhs);
 
-  dynamicFloat<TSignificand, TExponent>& operator--() const;
+  template<typename F, typename = std::enable_if_t<std::is_floating_point<F>::value>>
+  dynamicFloat<TSignificand, TExponent>& operator /= (const F _rhs);
+
+
+  dynamicFloat<TSignificand, TExponent> operator++(const int);
+
+  dynamicFloat<TSignificand, TExponent>& operator++();
+
+  dynamicFloat<TSignificand, TExponent> operator--(const int);
+
+  dynamicFloat<TSignificand, TExponent>& operator--();
 
 
 private:
@@ -154,6 +167,8 @@ private:
 
 };
 
+template<typename F>
+using dynamicEquivalent = std::conditional< std::is_same<F, float>::value, dynamicFloat<23, 8>, dynamicFloat<52, 11> >;
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------Numeric Limits Specialization------------------------------------------------------------------

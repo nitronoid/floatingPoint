@@ -36,6 +36,10 @@ public:
 private Q_SLOTS:
   void testCaseEquality();
   void testCaseAddition();
+  void testCaseMultiplication();
+  void testCaseDivision();
+  void testCaseSelfArithmetic();
+  void testCaseNONE();
 };
 
 void QDynamicFloatTest::testCaseEquality()
@@ -114,8 +118,8 @@ void QDynamicFloatTest::testCaseAddition()
 {
   std::random_device rd;
   std::mt19937 e2(rd());
-  std::uniform_real_distribution<TBuiltin> dist(std::numeric_limits<TBuiltin>::min(), 1000000000000000000);
-  for(int i = 0; i < 1000; ++i)
+  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
+  for(int i = 0; i < 100; ++i)
   {
     TBuiltin builtinLhs = dist(e2);
     TBuiltin builtinRhs = dist(e2);
@@ -125,6 +129,78 @@ void QDynamicFloatTest::testCaseAddition()
     TDynaFloat dynamicResult = dynamicLhs + dynamicRhs;
     QCOMPARE(TBuiltin(dynamicResult), builtinResult);
   }
+}
+
+void QDynamicFloatTest::testCaseMultiplication()
+{
+  std::random_device rd;
+  std::mt19937 e2(rd());
+  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
+  for(int i = 0; i < 1000; ++i)
+  {
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+    TBuiltin builtinResult = builtinLhs * builtinRhs;
+    TDynaFloat dynamicLhs = builtinLhs;
+    TDynaFloat dynamicRhs = builtinRhs;
+    TDynaFloat dynamicResult = dynamicLhs * dynamicRhs;
+    QCOMPARE(TBuiltin(dynamicResult), builtinResult);
+  }
+}
+
+void QDynamicFloatTest::testCaseDivision()
+{
+  std::random_device rd;
+  std::mt19937 e2(rd());
+  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
+  for(int i = 0; i < 1000; ++i)
+  {
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+    TBuiltin builtinResult = builtinLhs / builtinRhs;
+    TDynaFloat dynamicLhs = builtinLhs;
+    TDynaFloat dynamicRhs = builtinRhs;
+    TDynaFloat dynamicResult = dynamicLhs / dynamicRhs;
+    QCOMPARE(TBuiltin(dynamicResult), builtinResult);
+  }
+}
+
+void QDynamicFloatTest::testCaseSelfArithmetic()
+{
+  std::random_device rd;
+  std::mt19937 e2(rd());
+  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
+  for(int i = 0; i < 1000; ++i)
+  {
+    //Addition
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+
+    TDynaFloat dynamicLhs = builtinLhs;
+    TDynaFloat dynamicRhs = builtinRhs;
+
+    builtinLhs += builtinRhs;
+    dynamicLhs += dynamicRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+
+    //Subtraction
+    builtinLhs = dist(e2);
+    builtinRhs = dist(e2);
+
+    dynamicLhs = builtinLhs;
+    dynamicRhs = builtinRhs;
+
+    builtinLhs -= builtinRhs;
+    dynamicLhs -= dynamicRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
+
+void QDynamicFloatTest::testCaseNONE()
+{
+  float a = 1.0f;
+  a++;
+  std::cout<<a<<'\n';
 }
 
 QTEST_APPLESS_MAIN(QDynamicFloatTest)
