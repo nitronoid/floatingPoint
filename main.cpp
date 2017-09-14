@@ -7,11 +7,14 @@
 #include <QtTest>
 #include <random>
 
-//#define USE_DOUBLE
+#define USE_DOUBLE
 
 using float8 = dynamicFloat<3,4>;
 using float16 = dynamicFloat<10,5>;
+using float24 = dynamicFloat<16,7>;
 using float32 = dynamicFloat<23,8>;
+using float40 = dynamicFloat<31,8>;
+using float48 = dynamicFloat<39,8>;
 using float64 = dynamicFloat<52,11>;
 
 class QDynamicFloatTest : public QObject
@@ -30,17 +33,49 @@ class QDynamicFloatTest : public QObject
   static constexpr unsigned width = 32;
 #endif
 
+  static constexpr int iter = 100000;
+
 public:
   QDynamicFloatTest() = default;
 
+  std::random_device rd;
+  std::mt19937 e2{rd()};
+  std::uniform_real_distribution<TBuiltin> dist{static_cast<float>(-1000000000000000000), static_cast<float>(1000000000000000000)};
+
 private Q_SLOTS:
+
+  // Equality tests
   void testCaseEquality();
+
+  // Arithmetic tests
   void testCaseAddition();
   void testCaseMultiplication();
   void testCaseDivision();
-  void testCaseSelfArithmetic();
-  void testCaseNONE();
+  void incrementDecrementTestCase();
+
+  // Self arithmetic tests
+  void selfAdditionTestCase();
+  void selfAdditionBuiltinTestCase();
+  void selfSubtractionTestCase();
+  void selfSubtractionBuiltinTestCase();
+  void selfMultiplicationTestCase();
+  void selfMultiplicationBuiltinTestCase();
+  void selfDivisionTestCase();
+  void selfDivisionBuiltinTestCase();
+
+  void foo();
 };
+
+void QDynamicFloatTest::foo()
+{
+  TBuiltin foo = 5.7771e+17;
+  TBuiltin bar = -5.75865e+17;
+  TBuiltin res = foo + bar;
+  TDynaFloat food = foo;
+  TDynaFloat bard = bar;
+  TDynaFloat resd = food + bard;
+  QCOMPARE(TBuiltin(resd), res);
+}
 
 void QDynamicFloatTest::testCaseEquality()
 {
@@ -61,12 +96,12 @@ void QDynamicFloatTest::testCaseEquality()
   TDynaFloat dynamicSNaNConv = builtinSNaN;
   QVERIFY2(
         !(dynamicSNaN == builtinSNaN) &&
-        (std::bitset<width>(bit_cast<Tuint>(builtinSNaN)) == std::bitset<width>(bit_cast<Tuint>(dynamicSNaN))),
+        (std::bitset<width>(detail::bit_cast<Tuint>(builtinSNaN)) == std::bitset<width>(detail::bit_cast<Tuint>(dynamicSNaN))),
         "Failure"
         );
   QVERIFY2(
         !(dynamicSNaNConv == builtinSNaN) &&
-        (std::bitset<width>(bit_cast<Tuint>(builtinSNaN)) == std::bitset<width>(bit_cast<Tuint>(dynamicSNaNConv))),
+        (std::bitset<width>(detail::bit_cast<Tuint>(builtinSNaN)) == std::bitset<width>(detail::bit_cast<Tuint>(dynamicSNaNConv))),
         "Failure"
         );
 
@@ -75,12 +110,12 @@ void QDynamicFloatTest::testCaseEquality()
   TDynaFloat dynamicQNaNConv = builtinQNaN;
   QVERIFY2(
         !(dynamicQNaN == builtinQNaN) &&
-        (std::bitset<width>(bit_cast<Tuint>(builtinQNaN)) == std::bitset<width>(bit_cast<Tuint>(dynamicQNaN))),
+        (std::bitset<width>(detail::bit_cast<Tuint>(builtinQNaN)) == std::bitset<width>(detail::bit_cast<Tuint>(dynamicQNaN))),
         "Failure"
         );
   QVERIFY2(
         !(dynamicQNaNConv == builtinQNaN) &&
-        (std::bitset<width>(bit_cast<Tuint>(builtinQNaN)) == std::bitset<width>(bit_cast<Tuint>(dynamicQNaNConv))),
+        (std::bitset<width>(detail::bit_cast<Tuint>(builtinQNaN)) == std::bitset<width>(detail::bit_cast<Tuint>(dynamicQNaNConv))),
         "Failure"
         );
 
@@ -102,10 +137,7 @@ void QDynamicFloatTest::testCaseEquality()
   QVERIFY2(builtinLowest == dynamicLowest, "Failure");
   QVERIFY2(builtinLowest == dynamicLowestConv, "Failure");
 
-  std::random_device rd;
-  std::mt19937 e2(rd());
-  std::uniform_real_distribution<TBuiltin> dist(std::numeric_limits<TBuiltin>::min(), std::numeric_limits<TBuiltin>::max());
-  for(int i = 0; i < 1000; ++i)
+  for(int i = 0; i < iter; ++i)
   {
 
     TBuiltin builtin = dist(e2);
@@ -116,9 +148,6 @@ void QDynamicFloatTest::testCaseEquality()
 
 void QDynamicFloatTest::testCaseAddition()
 {
-  std::random_device rd;
-  std::mt19937 e2(rd());
-  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
   for(int i = 0; i < 100; ++i)
   {
     TBuiltin builtinLhs = dist(e2);
@@ -133,10 +162,7 @@ void QDynamicFloatTest::testCaseAddition()
 
 void QDynamicFloatTest::testCaseMultiplication()
 {
-  std::random_device rd;
-  std::mt19937 e2(rd());
-  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
-  for(int i = 0; i < 1000; ++i)
+  for(int i = 0; i < iter; ++i)
   {
     TBuiltin builtinLhs = dist(e2);
     TBuiltin builtinRhs = dist(e2);
@@ -150,10 +176,7 @@ void QDynamicFloatTest::testCaseMultiplication()
 
 void QDynamicFloatTest::testCaseDivision()
 {
-  std::random_device rd;
-  std::mt19937 e2(rd());
-  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
-  for(int i = 0; i < 1000; ++i)
+  for(int i = 0; i < iter; ++i)
   {
     TBuiltin builtinLhs = dist(e2);
     TBuiltin builtinRhs = dist(e2);
@@ -165,12 +188,9 @@ void QDynamicFloatTest::testCaseDivision()
   }
 }
 
-void QDynamicFloatTest::testCaseSelfArithmetic()
+void QDynamicFloatTest::selfAdditionTestCase()
 {
-  std::random_device rd;
-  std::mt19937 e2(rd());
-  std::uniform_real_distribution<TBuiltin> dist(-1000000000000000000, 1000000000000000000);
-  for(int i = 0; i < 1000; ++i)
+  for(int i = 0; i < iter; ++i)
   {
     //Addition
     TBuiltin builtinLhs = dist(e2);
@@ -178,17 +198,38 @@ void QDynamicFloatTest::testCaseSelfArithmetic()
 
     TDynaFloat dynamicLhs = builtinLhs;
     TDynaFloat dynamicRhs = builtinRhs;
-
     builtinLhs += builtinRhs;
     dynamicLhs += dynamicRhs;
     QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
 
+void QDynamicFloatTest::selfAdditionBuiltinTestCase()
+{
+  for(int i = 0; i < iter; ++i)
+  {
+    //Addition with builtin
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+
+    TDynaFloat dynamicLhs = builtinLhs;
+
+    builtinLhs += builtinRhs;
+    dynamicLhs += builtinRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
+
+void QDynamicFloatTest::selfSubtractionTestCase()
+{
+  for(int i = 0; i < iter; ++i)
+  {
     //Subtraction
-    builtinLhs = dist(e2);
-    builtinRhs = dist(e2);
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
 
-    dynamicLhs = builtinLhs;
-    dynamicRhs = builtinRhs;
+    TDynaFloat dynamicLhs = builtinLhs;
+    TDynaFloat dynamicRhs = builtinRhs;
 
     builtinLhs -= builtinRhs;
     dynamicLhs -= dynamicRhs;
@@ -196,11 +237,121 @@ void QDynamicFloatTest::testCaseSelfArithmetic()
   }
 }
 
-void QDynamicFloatTest::testCaseNONE()
+void QDynamicFloatTest::selfSubtractionBuiltinTestCase()
 {
-  float a = 1.0f;
-  a++;
-  std::cout<<a<<'\n';
+  for(int i = 0; i < iter; ++i)
+  {
+    //Subtraction with builtin
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+
+    TDynaFloat dynamicLhs = builtinLhs;
+
+    builtinLhs -= builtinRhs;
+    dynamicLhs -= builtinRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
+
+void QDynamicFloatTest::selfMultiplicationTestCase()
+{
+  for(int i = 0; i < iter; ++i)
+  {
+    //Multiplication
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+
+    TDynaFloat dynamicLhs = builtinLhs;
+    TDynaFloat dynamicRhs = builtinRhs;
+
+    builtinLhs *= builtinRhs;
+    dynamicLhs *= dynamicRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
+
+void QDynamicFloatTest::selfMultiplicationBuiltinTestCase()
+{
+  for(int i = 0; i < iter; ++i)
+  {
+    //Multiplication with builtin
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+
+    TDynaFloat dynamicLhs = builtinLhs;
+
+    builtinLhs *= builtinRhs;
+    dynamicLhs *= builtinRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
+
+void QDynamicFloatTest::selfDivisionTestCase()
+{
+  for(int i = 0; i < iter; ++i)
+  {
+    //Division
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+
+    TDynaFloat dynamicLhs = builtinLhs;
+    TDynaFloat dynamicRhs = builtinRhs;
+
+    builtinLhs /= builtinRhs;
+    dynamicLhs /= dynamicRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
+
+void QDynamicFloatTest::selfDivisionBuiltinTestCase()
+{
+  for(int i = 0; i < iter; ++i)
+  {
+    //Division with builtin
+    TBuiltin builtinLhs = dist(e2);
+    TBuiltin builtinRhs = dist(e2);
+
+    TDynaFloat dynamicLhs = builtinLhs;
+
+    builtinLhs /= builtinRhs;
+    dynamicLhs /= builtinRhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+  }
+}
+
+void QDynamicFloatTest::incrementDecrementTestCase()
+{
+  for(int i = 0; i < iter; ++i)
+  {
+    //Pre and Post increment
+    TBuiltin builtinLhs = dist(e2);
+    TDynaFloat dynamicLhs = builtinLhs;
+    builtinLhs++;
+    dynamicLhs++;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+    builtinLhs = dist(e2);
+    dynamicLhs = builtinLhs;
+    ++builtinLhs;
+    ++dynamicLhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+
+    //Pre and Post decrement
+    builtinLhs = dist(e2);
+    dynamicLhs = builtinLhs;
+    builtinLhs--;
+    dynamicLhs--;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+    builtinLhs = dist(e2);
+    dynamicLhs = builtinLhs;
+    --builtinLhs;
+    --dynamicLhs;
+    QCOMPARE(TBuiltin(dynamicLhs), builtinLhs);
+
+    //Unary minus
+    builtinLhs = dist(e2);
+    dynamicLhs = builtinLhs;
+    QCOMPARE(TBuiltin(-dynamicLhs), -builtinLhs);
+  }
 }
 
 QTEST_APPLESS_MAIN(QDynamicFloatTest)

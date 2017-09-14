@@ -15,7 +15,7 @@ SOURCES += \
 HEADERS += \
     dynamicfloat.h
 
-QMAKE_CXXFLAGS += -std=c++14
+QMAKE_CXXFLAGS += -std=c++14 -O2
 
 #clang
 linux-clang++: QMAKE_CXXFLAGS += -Weverything -Wno-c++98-compat

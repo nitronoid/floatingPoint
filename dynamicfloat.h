@@ -4,8 +4,12 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
+#include <climits>
 #include <cstring>
 #include <type_traits>
+
+namespace detail
+{
 
 template <typename TDest, typename TSource>
 inline TDest bit_cast(const TSource& source)
@@ -16,16 +20,21 @@ inline TDest bit_cast(const TSource& source)
   return dest;
 }
 
+using uint128_t = __uint128_t;
 // Selects the correct size type based on passed bit num
 template<int N>
 using uintN_t =
-typename std::conditional_t< N <=  8,  uint8_t,
-typename std::conditional_t< N <= 16, uint16_t,
-typename std::conditional_t< N <= 32, uint32_t,
-uint64_t
->
->
+  typename std::conditional_t< N <=  8,  uint8_t,
+    typename std::conditional_t< N <= 16, uint16_t,
+      typename std::conditional_t< N <= 32, uint32_t,
+        typename std::conditional_t< N <= 64, uint64_t,
+          uint128_t
+      >
+    >
+  >
 >;
+
+}
 
 template <unsigned TSignificand, unsigned TExponent>
 class dynamicFloat
@@ -37,19 +46,19 @@ class dynamicFloat
   //Declare total number of bits for easy reference
   static constexpr int typeWidth = TSignificand + TExponent + 1;
   //Define the smallest unsigned int that can represent this
-  using uint_n = uintN_t<typeWidth>;
+  using uint_n = detail::uintN_t<typeWidth>;
 
 public:
 
-//==================================================================================================================
-//---------------------------------------------------Constructors---------------------------------------------------
-//==================================================================================================================
+  //==================================================================================================================
+  //---------------------------------------------------Constructors---------------------------------------------------
+  //==================================================================================================================
   dynamicFloat() = default;
 
-  dynamicFloat(const float _inFloat) : dynamicFloat(bit_cast<dynamicFloat<23,8>>(_inFloat)){}
+  dynamicFloat(const float _inFloat) : dynamicFloat(detail::bit_cast<dynamicFloat<23,8>>(_inFloat)){}
   dynamicFloat<TSignificand, TExponent>& operator= (const float _inFloat);
 
-  dynamicFloat(const double _inDouble) : dynamicFloat(bit_cast<dynamicFloat<52,11>>(_inDouble)){}
+  dynamicFloat(const double _inDouble) : dynamicFloat(detail::bit_cast<dynamicFloat<52,11>>(_inDouble)){}
   dynamicFloat<TSignificand, TExponent>& operator= (const double _inDouble);
 
   dynamicFloat(const dynamicFloat<TSignificand, TExponent> &_inFloat) : m_data(_inFloat.m_data.m_bits) {}
@@ -59,9 +68,9 @@ public:
   dynamicFloat(const dynamicFloat<TInSigLen,TInExpLen> _inFloat);
 
 
-//==================================================================================================================
-//----------------------------------------------------Operators-----------------------------------------------------
-//==================================================================================================================
+  //==================================================================================================================
+  //----------------------------------------------------Operators-----------------------------------------------------
+  //==================================================================================================================
 
   //--------------------------------------------------Conversion----------------------------------------------------
   operator float() const;
@@ -157,18 +166,25 @@ private:
 
   inline bool isDenorm() const noexcept;
 
-  template<int width>
-  bool nonOverflowMult(const uint64_t _lhs, const uint64_t _rhs, uint64_t &io_result) const;
+  template<int width, typename Tuint>
+  bool nonOverflowMult(const Tuint _lhs, const Tuint _rhs, Tuint &io_result) const;
 
-  template<int width>
-  bool longDivide(uint64_t _lhs, const uint64_t _rhs, uint64_t &io_result) const;
+  template<int width, typename Tuint>
+  bool longDivide(Tuint _lhs, const Tuint _rhs, Tuint &io_result) const;
 
-  inline auto roundingShift(uint64_t io_num, const uint64_t _shift) const;
+  template<typename Tuint>
+  inline auto roundingShift(Tuint io_num, unsigned _shift) const;
+
+  template<unsigned width, typename Tuint>
+  auto normalize(Tuint io_num) const;
 
 };
 
+namespace detail
+{
 template<typename F>
-using dynamicEquivalent = std::conditional< std::is_same<F, float>::value, dynamicFloat<23, 8>, dynamicFloat<52, 11> >;
+using dynamicEquivalent = std::conditional_t< std::is_same<F, float>::value, dynamicFloat<23, 8>, dynamicFloat<52, 11> >;
+}
 
 //----------------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------Numeric Limits Specialization------------------------------------------------------------------
@@ -184,13 +200,13 @@ private:
   using dfloat = dynamicFloat<TSignificand, TExponent>;
   static constexpr int typeWidthMinusOne = TSignificand + TExponent;
   static constexpr int typeWidth   = typeWidthMinusOne + 1;
-  using uint_n = uintN_t<typeWidth>;
+  using uint_n = detail::uintN_t<typeWidth>;
   static constexpr uint_n maskOnes = ~uint_n{0};
   static constexpr uint_n maskOnesNoSign = maskOnes & ~(1ul << typeWidthMinusOne); // 0-111.... , 0 followed by all ones
   static constexpr uint64_t mantAllOne(int64_t _offset) { return ((1ul << (TSignificand + _offset)) - 1 ); }
   static constexpr dfloat floatFromBits(uint_n _bits)
   {
-    //Default constructor will avoid non-constexpr call to bit_cast
+    //Default constructor will avoid non-constexpr call to details::bit_cast
     dfloat bitFloat{};
     //Set the bits directly with friend class relationship
     bitFloat.m_data.m_bits = _bits;
